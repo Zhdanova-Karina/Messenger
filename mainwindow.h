@@ -32,12 +32,13 @@ private:
     void switchToChat(const QString& contact);
     void addChatTab(const QString& contact);
     void sendMessageForContact(const QString& contact);
-    void createEmojiPanel(const QString& contact);
+    void checkAndAddDateSeparator(const QString& chatId, const QDate& messageDate);
 
     QTcpSocket *socket;
     QString username;
     QString currentContact;
     QString lastUsersList;
+    QString lastMessageDate;  // для отслеживания дат в чате
 
     QListWidget *userList;
     QStackedWidget *chatStack;
