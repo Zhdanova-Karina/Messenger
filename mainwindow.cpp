@@ -380,9 +380,16 @@ void MainWindow::onReadyRead()
                 QString from = line.mid(1, endOfName - 1);
                 QString text = line.mid(endOfName + 3);
 
+                // ЕСЛИ СООБЩЕНИЕ НЕ ОТ НАС
                 if (from != username) {
-                    unreadCounts[from] = unreadCounts.value(from, 0) + 1;
-                    updateUserList(lastUsersList);
+                    // ПРОВЕРЯЕМ, ОТКРЫТ ЛИ ЧАТ С ЭТИМ ПОЛЬЗОВАТЕЛЕМ
+                    bool isCurrentChat = (currentContact == from);
+
+                    // ЕСЛИ ЧАТ НЕ ОТКРЫТ, УВЕЛИЧИВАЕМ СЧЁТЧИК НЕПРОЧИТАННЫХ
+                    if (!isCurrentChat) {
+                        unreadCounts[from] = unreadCounts.value(from, 0) + 1;
+                        updateUserList(lastUsersList);
+                    }
                 }
                 appendMessage(from, from, text);
             }
@@ -393,22 +400,5 @@ void MainWindow::onReadyRead()
         else {
             appendMessage("system", "Система", line);
         }
-    }
-}
-
-void MainWindow::onUserSelected()
-{
-    if (userList->currentItem()) {
-        QString selected = userList->currentItem()->text();
-        QString contact = selected.split(" 🟠").first();
-        contact = contact.trimmed();
-        switchToChat(contact);
-    }
-}
-
-void MainWindow::sendCommand(const QString& cmd)
-{
-    if (socket && socket->state() == QTcpSocket::ConnectedState) {
-        socket->write((cmd + "\n").toUtf8());
     }
 }
