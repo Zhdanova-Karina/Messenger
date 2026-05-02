@@ -13,6 +13,7 @@
 #include <QScrollBar>
 #include <QFont>
 #include <QGridLayout>
+#include <QDate>
 
 MainWindow::MainWindow(const QString& serverIp, const QString& name, QWidget *parent)
     : QMainWindow(parent), username(name)
@@ -105,12 +106,10 @@ void MainWindow::addChatTab(const QString& contact)
     emojiLayout->setSpacing(5);
     emojiLayout->setContentsMargins(10, 10, 10, 10);
 
-    // Список смайликов (как в ВК)
+    // Список смайликов
     QStringList emojis = {
         "😊", "😂", "🥰", "😍", "🎉", "❤️", "👍", "🔥",
-        "😎", "🤔", "😢", "🥺", "😘", "😁", "🙈", "💀",
-        "✨", "⭐", "🌸", "🍕", "☕", "⚽", "🎵", "💻",
-        "😡", "😱", "🥱", "🤡", "👋", "🤝", "💪", "🧠"
+        "😎", "🤔", "😢", "🥺", "😘", "😁", "🙈", "💀"
     };
 
     for (int i = 0; i < emojis.size(); ++i) {
@@ -157,7 +156,6 @@ void MainWindow::addChatTab(const QString& contact)
         "QPushButton:pressed { background-color: #FFA500; }"
         );
 
-    // Horizontal layout для поля ввода и кнопок
     QHBoxLayout *inputLayout = new QHBoxLayout();
     inputLayout->addWidget(inputField);
     inputLayout->addWidget(emojiBtn);
@@ -165,7 +163,6 @@ void MainWindow::addChatTab(const QString& contact)
     inputLayout->setContentsMargins(10, 10, 10, 10);
     inputLayout->setSpacing(8);
 
-    // Добавляем всё в вертикальный layout
     layout->addWidget(chatArea);
     layout->addWidget(emojiPanel);
     layout->addLayout(inputLayout);
@@ -180,9 +177,9 @@ void MainWindow::addChatTab(const QString& contact)
     widgets.sendButton = sendBtn;
     widgets.emojiButton = emojiBtn;
     widgets.emojiPanel = emojiPanel;
+    widgets.lastMessageDate = "";  // инициализируем пустой строкой
     chats[contact] = widgets;
 
-    // Подключаем сигналы для отправки
     connect(sendBtn, &QPushButton::clicked, this, [this, contact]() {
         sendMessageForContact(contact);
     });
@@ -190,7 +187,6 @@ void MainWindow::addChatTab(const QString& contact)
         sendMessageForContact(contact);
     });
 
-    // Открытие/закрытие панели смайликов
     connect(emojiBtn, &QPushButton::clicked, this, [this, contact]() {
         if (chats.contains(contact)) {
             bool visible = chats[contact].emojiPanel->isVisible();
@@ -213,7 +209,6 @@ void MainWindow::sendMessageForContact(const QString& contact)
 
 void MainWindow::switchToChat(const QString& contact)
 {
-    // Закрываем панель смайликов предыдущего чата
     if (chats.contains(currentContact)) {
         chats[currentContact].emojiPanel->setVisible(false);
     }
@@ -224,7 +219,6 @@ void MainWindow::switchToChat(const QString& contact)
         addChatTab(contact);
     }
 
-    // Сбрасываем счётчик непрочитанных
     if (unreadCounts.contains(contact) && unreadCounts[contact] > 0) {
         unreadCounts[contact] = 0;
         if (!lastUsersList.isEmpty()) {
@@ -245,7 +239,7 @@ void MainWindow::appendMessage(const QString& chatId, const QString& from, const
         addChatTab(chatId);
     }
 
-    // Добавляем разделитель даты, если нужно
+    // Добавляем разделитель даты, если нужно (только для не-системных чатов)
     if (chatId != "system") {
         checkAndAddDateSeparator(chatId, QDate::currentDate());
     }
@@ -256,27 +250,27 @@ void MainWindow::appendMessage(const QString& chatId, const QString& from, const
     QString formatted;
     if (from == username) {
         formatted = QString(
-                        "<table width='100%' style='margin-bottom: 2px;'>"
+                        "<table width='100%' style='margin-bottom: 2px 0;'>"
                         "<tr>"
                         "<td align='left' style='color:#000000;'>"
                         "<b>%1</b> [%2]: %3"
                         "</td>"
-                        "</tr>"
+                        "<tr>"
                         "</table>"
                         ).arg(from, timestamp, text.toHtmlEscaped());
     } else if (from == "Система") {
         formatted = QString(
-                        "<table width='100%' style='margin-bottom: 2px;'>"
+                        "<table width='100%' style='margin-bottom: 2px 0;'>"
                         "<tr>"
                         "<td align='left' style='color:#888888; font-style:italic;'>"
                         "%1"
                         "</td>"
                         "</tr>"
-                        "</table>"
+                        "</tr>"
                         ).arg(text);
     } else {
         formatted = QString(
-                        "<table width='100%' style='margin-bottom: 2px;'>"
+                        "<table width='100%' style='margin-bottom: 2px 0;'>"
                         "<tr>"
                         "<td align='left'>"
                         "<b>%1</b> [%2]: %3"
@@ -299,15 +293,45 @@ void MainWindow::appendMessage(const QString& chatId, const QString& from, const
     }
 }
 
+void MainWindow::checkAndAddDateSeparator(const QString& chatId, const QDate& messageDate)
+{
+    if (!chats.contains(chatId)) return;
+
+    QString formattedDate;
+    QDate currentDate = QDate::currentDate();
+    QDate yesterday = currentDate.addDays(-1);
+
+    if (messageDate == currentDate) {
+        formattedDate = "Сегодня";
+    } else if (messageDate == yesterday) {
+        formattedDate = "Вчера";
+    } else {
+        formattedDate = messageDate.toString("d MMMM yyyy");
+    }
+
+    QString dateString = messageDate.toString("yyyy-MM-dd");
+
+    // Используем date из структуры чата
+    if (chats[chatId].lastMessageDate != dateString) {
+        QString separator = QString(
+                                "<div style='text-align: center;'>"
+                                "<span style='background-color: #E0E0E0; padding: 4px 12px; border-radius: 16px; "
+                                "font-size: 12px; color: #666;'>%1</span>"
+                                "</div>"
+                                ).arg(formattedDate);
+
+        chats[chatId].chatArea->append(separator);
+        chats[chatId].lastMessageDate = dateString;
+    }
+}
+
 void MainWindow::updateUserList(const QString& users)
 {
     lastUsersList = users;
     userList->clear();
 
-    // Если строка пустая — выходим
     if (users.isEmpty()) return;
 
-    // Разбиваем строку на имена
     QStringList userList_ = users.split(' ', Qt::SkipEmptyParts);
 
     for (const QString& user : userList_) {
@@ -343,7 +367,6 @@ void MainWindow::onReadyRead()
         if (line.startsWith("OK")) {
             // успех
         }
-        // === ДОБАВЛЯЕМ ОБРАБОТКУ ONLINE: ===
         else if (line.startsWith("Users:") || line.startsWith("ONLINE:")) {
             QString users = line;
             users.remove("Users:");
@@ -387,37 +410,5 @@ void MainWindow::sendCommand(const QString& cmd)
 {
     if (socket && socket->state() == QTcpSocket::ConnectedState) {
         socket->write((cmd + "\n").toUtf8());
-    }
-}
-
-void MainWindow::checkAndAddDateSeparator(const QString& chatId, const QDate& messageDate)
-{
-    if (!chats.contains(chatId)) return;
-
-    QString formattedDate;
-    QDate currentDate = QDate::currentDate();
-    QDate yesterday = currentDate.addDays(-1);
-
-    if (messageDate == currentDate) {
-        formattedDate = "Сегодня";
-    } else if (messageDate == yesterday) {
-        formattedDate = "Вчера";
-    } else {
-        formattedDate = messageDate.toString("d MMMM yyyy");
-    }
-
-    QString dateString = messageDate.toString("yyyy-MM-dd");
-
-    // Проверяем, нужно ли добавлять разделитель
-    if (lastMessageDate != dateString) {
-        QString separator = QString(
-                                "<div style='text-align: center; margin: 15px 0; position: relative;'>"
-                                "<span style='background-color: #FFFFE0; padding: 5px 12px; border-radius: 15px; "
-                                "font-size: 12px; color: #666666;'>%1</span>"
-                                "</div>"
-                                ).arg(formattedDate);
-
-        chats[chatId].chatArea->append(separator);
-        lastMessageDate = dateString;
     }
 }
