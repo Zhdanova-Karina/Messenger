@@ -245,19 +245,45 @@ void MainWindow::appendMessage(const QString& chatId, const QString& from, const
         addChatTab(chatId);
     }
 
+    // Добавляем разделитель даты, если нужно
+    if (chatId != "system") {
+        checkAndAddDateSeparator(chatId, QDate::currentDate());
+    }
+
     QTime currentTime = QTime::currentTime();
     QString timestamp = currentTime.toString("hh:mm");
 
     QString formatted;
     if (from == username) {
-        formatted = QString("<p style='color:#000000; text-align:left;'><b>%1</b> (%2): %3</p>")
-        .arg(from, timestamp, text);
+        formatted = QString(
+                        "<table width='100%' style='margin-bottom: 2px;'>"
+                        "<tr>"
+                        "<td align='left' style='color:#000000;'>"
+                        "<b>%1</b> [%2]: %3"
+                        "</td>"
+                        "</tr>"
+                        "</table>"
+                        ).arg(from, timestamp, text.toHtmlEscaped());
     } else if (from == "Система") {
-        formatted = QString("<p style='color:#888888; text-align:center; font-style:italic;'>%1</p>")
-        .arg(text);
+        formatted = QString(
+                        "<table width='100%' style='margin-bottom: 2px;'>"
+                        "<tr>"
+                        "<td align='left' style='color:#888888; font-style:italic;'>"
+                        "%1"
+                        "</td>"
+                        "</tr>"
+                        "</table>"
+                        ).arg(text);
     } else {
-        formatted = QString("<p style='text-align:left;'><b>%1</b> (%2): %3</p>")
-        .arg(from, timestamp, text);
+        formatted = QString(
+                        "<table width='100%' style='margin-bottom: 2px;'>"
+                        "<tr>"
+                        "<td align='left'>"
+                        "<b>%1</b> [%2]: %3"
+                        "</td>"
+                        "</tr>"
+                        "</table>"
+                        ).arg(from, timestamp, text.toHtmlEscaped());
     }
 
     if (chatId == "system") {
@@ -277,18 +303,21 @@ void MainWindow::updateUserList(const QString& users)
 {
     lastUsersList = users;
     userList->clear();
+
+    // Если строка пустая — выходим
+    if (users.isEmpty()) return;
+
+    // Разбиваем строку на имена
     QStringList userList_ = users.split(' ', Qt::SkipEmptyParts);
 
     for (const QString& user : userList_) {
-        if (user != username) {
-            QString displayName = user;
+        if (user == username) continue;
 
-            if (unreadCounts.contains(user) && unreadCounts[user] > 0) {
-                displayName = QString("%1 🟠").arg(user);
-            }
-
-            userList->addItem(displayName);
+        QString displayName = user;
+        if (unreadCounts.contains(user) && unreadCounts[user] > 0) {
+            displayName = QString("%1 🟠").arg(user);
         }
+        userList->addItem(displayName);
     }
 }
 
@@ -314,8 +343,12 @@ void MainWindow::onReadyRead()
         if (line.startsWith("OK")) {
             // успех
         }
-        else if (line.startsWith("Users:")) {
-            QString users = line.mid(7).trimmed();
+        // === ДОБАВЛЯЕМ ОБРАБОТКУ ONLINE: ===
+        else if (line.startsWith("Users:") || line.startsWith("ONLINE:")) {
+            QString users = line;
+            users.remove("Users:");
+            users.remove("ONLINE:");
+            users = users.trimmed();
             updateUserList(users);
         }
         else if (line.startsWith("[")) {
@@ -354,5 +387,37 @@ void MainWindow::sendCommand(const QString& cmd)
 {
     if (socket && socket->state() == QTcpSocket::ConnectedState) {
         socket->write((cmd + "\n").toUtf8());
+    }
+}
+
+void MainWindow::checkAndAddDateSeparator(const QString& chatId, const QDate& messageDate)
+{
+    if (!chats.contains(chatId)) return;
+
+    QString formattedDate;
+    QDate currentDate = QDate::currentDate();
+    QDate yesterday = currentDate.addDays(-1);
+
+    if (messageDate == currentDate) {
+        formattedDate = "Сегодня";
+    } else if (messageDate == yesterday) {
+        formattedDate = "Вчера";
+    } else {
+        formattedDate = messageDate.toString("d MMMM yyyy");
+    }
+
+    QString dateString = messageDate.toString("yyyy-MM-dd");
+
+    // Проверяем, нужно ли добавлять разделитель
+    if (lastMessageDate != dateString) {
+        QString separator = QString(
+                                "<div style='text-align: center; margin: 15px 0; position: relative;'>"
+                                "<span style='background-color: #FFFFE0; padding: 5px 12px; border-radius: 15px; "
+                                "font-size: 12px; color: #666666;'>%1</span>"
+                                "</div>"
+                                ).arg(formattedDate);
+
+        chats[chatId].chatArea->append(separator);
+        lastMessageDate = dateString;
     }
 }
