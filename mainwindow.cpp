@@ -12,6 +12,7 @@
 #include <QTime>
 #include <QScrollBar>
 #include <QFont>
+#include <QGridLayout>
 
 MainWindow::MainWindow(const QString& serverIp, const QString& name, QWidget *parent)
     : QMainWindow(parent), username(name)
@@ -86,11 +87,47 @@ void MainWindow::addChatTab(const QString& contact)
     QWidget *chatPage = new QWidget(this);
     QVBoxLayout *layout = new QVBoxLayout(chatPage);
     layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
 
     // Область сообщений
     QTextEdit *chatArea = new QTextEdit(this);
     chatArea->setReadOnly(true);
     chatArea->setStyleSheet("QTextEdit { background-color: #FFFFE0; border: none; }");
+
+    // Панель со смайликами
+    QWidget *emojiPanel = new QWidget(this);
+    emojiPanel->setVisible(false);
+    emojiPanel->setStyleSheet(
+        "QWidget { background-color: #FFFFFF; border: 1px solid #ccc; border-radius: 8px; }"
+        );
+
+    QGridLayout *emojiLayout = new QGridLayout(emojiPanel);
+    emojiLayout->setSpacing(5);
+    emojiLayout->setContentsMargins(10, 10, 10, 10);
+
+    // Список смайликов (как в ВК)
+    QStringList emojis = {
+        "😊", "😂", "🥰", "😍", "🎉", "❤️", "👍", "🔥",
+        "😎", "🤔", "😢", "🥺", "😘", "😁", "🙈", "💀",
+        "✨", "⭐", "🌸", "🍕", "☕", "⚽", "🎵", "💻",
+        "😡", "😱", "🥱", "🤡", "👋", "🤝", "💪", "🧠"
+    };
+
+    for (int i = 0; i < emojis.size(); ++i) {
+        QPushButton *btn = new QPushButton(emojis[i]);
+        btn->setFixedSize(45, 45);
+        btn->setStyleSheet(
+            "QPushButton { font-size: 24px; border: none; border-radius: 8px; }"
+            "QPushButton:hover { background-color: #f0f0f0; }"
+            );
+        connect(btn, &QPushButton::clicked, this, [this, contact, emojis, i]() {
+            if (chats.contains(contact)) {
+                chats[contact].inputField->insert(emojis[i]);
+                chats[contact].inputField->setFocus();
+            }
+        });
+        emojiLayout->addWidget(btn, i / 8, i % 8);
+    }
 
     // Поле ввода
     QLineEdit *inputField = new QLineEdit(this);
@@ -100,6 +137,14 @@ void MainWindow::addChatTab(const QString& contact)
         "QLineEdit { padding-left: 15px; padding-right: 10px; font-size: 14px; "
         "border: 1px solid #ccc; border-radius: 8px; }"
         "QLineEdit:focus { border: 1px solid #FFD700; }"
+        );
+
+    // Кнопка смайликов
+    QPushButton *emojiBtn = new QPushButton("😊", this);
+    emojiBtn->setFixedSize(40, 40);
+    emojiBtn->setStyleSheet(
+        "QPushButton { font-size: 20px; background-color: #FFD700; border-radius: 8px; }"
+        "QPushButton:hover { background-color: #FFA500; }"
         );
 
     // Кнопка отправки
@@ -112,27 +157,45 @@ void MainWindow::addChatTab(const QString& contact)
         "QPushButton:pressed { background-color: #FFA500; }"
         );
 
+    // Horizontal layout для поля ввода и кнопок
     QHBoxLayout *inputLayout = new QHBoxLayout();
     inputLayout->addWidget(inputField);
+    inputLayout->addWidget(emojiBtn);
     inputLayout->addWidget(sendBtn);
     inputLayout->setContentsMargins(10, 10, 10, 10);
+    inputLayout->setSpacing(8);
 
+    // Добавляем всё в вертикальный layout
     layout->addWidget(chatArea);
+    layout->addWidget(emojiPanel);
     layout->addLayout(inputLayout);
+
     chatPage->setLayout(layout);
     chatStack->addWidget(chatPage);
 
+    // Сохраняем виджеты
     ChatWidgets widgets;
     widgets.chatArea = chatArea;
     widgets.inputField = inputField;
     widgets.sendButton = sendBtn;
+    widgets.emojiButton = emojiBtn;
+    widgets.emojiPanel = emojiPanel;
     chats[contact] = widgets;
 
+    // Подключаем сигналы для отправки
     connect(sendBtn, &QPushButton::clicked, this, [this, contact]() {
         sendMessageForContact(contact);
     });
     connect(inputField, &QLineEdit::returnPressed, this, [this, contact]() {
         sendMessageForContact(contact);
+    });
+
+    // Открытие/закрытие панели смайликов
+    connect(emojiBtn, &QPushButton::clicked, this, [this, contact]() {
+        if (chats.contains(contact)) {
+            bool visible = chats[contact].emojiPanel->isVisible();
+            chats[contact].emojiPanel->setVisible(!visible);
+        }
     });
 }
 
@@ -150,6 +213,11 @@ void MainWindow::sendMessageForContact(const QString& contact)
 
 void MainWindow::switchToChat(const QString& contact)
 {
+    // Закрываем панель смайликов предыдущего чата
+    if (chats.contains(currentContact)) {
+        chats[currentContact].emojiPanel->setVisible(false);
+    }
+
     bool isNewChat = !chats.contains(contact);
 
     if (isNewChat) {
@@ -215,7 +283,6 @@ void MainWindow::updateUserList(const QString& users)
         if (user != username) {
             QString displayName = user;
 
-            // Если есть непрочитанные сообщения, добавляем оранжевый эмодзи
             if (unreadCounts.contains(user) && unreadCounts[user] > 0) {
                 displayName = QString("%1 🟠").arg(user);
             }
@@ -258,7 +325,6 @@ void MainWindow::onReadyRead()
                 QString text = line.mid(endOfName + 3);
 
                 if (from != username) {
-                    // Увеличиваем счётчик непрочитанных
                     unreadCounts[from] = unreadCounts.value(from, 0) + 1;
                     updateUserList(lastUsersList);
                 }
@@ -278,7 +344,6 @@ void MainWindow::onUserSelected()
 {
     if (userList->currentItem()) {
         QString selected = userList->currentItem()->text();
-        // Извлекаем имя пользователя до эмодзи
         QString contact = selected.split(" 🟠").first();
         contact = contact.trimmed();
         switchToChat(contact);
