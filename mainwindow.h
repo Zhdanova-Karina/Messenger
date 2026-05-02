@@ -32,6 +32,7 @@ private:
     void switchToChat(const QString& contact);
     void addChatTab(const QString& contact);
     void sendMessageForContact(const QString& contact);
+    void createEmojiPanel(const QString& contact);
 
     QTcpSocket *socket;
     QString username;
@@ -45,6 +46,8 @@ private:
         QTextEdit *chatArea;
         QLineEdit *inputField;
         QPushButton *sendButton;
+        QPushButton *emojiButton;
+        QWidget *emojiPanel;
     };
     QMap<QString, ChatWidgets> chats;
     QMap<QString, int> unreadCounts;
